@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![CI](https://img.shields.io/github/actions/workflow/status/ahmedtadde/chash/rust.yml)
-![crates.io](https://img.shields.io/crates/dv/chash)
+![crates.io](https://img.shields.io/crates/d/chash)
 ![docs.rs](https://img.shields.io/docsrs/chash)
 
 This library provides a consistent hashring which simultaneously achieves both uniformity and consistency. It is a direct port of the Go pkg <https://github.com/buraksezer/consistent>.

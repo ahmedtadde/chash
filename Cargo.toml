@@ -1,0 +1,20 @@
+[package]
+name = "chash"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ahmed Tadde <https://github.com/ahmedtadde>"]
+description = "A consistent hashing library for Rust"
+readme = "README.md"
+homepage = "https://github.com/ahmedtadde/chash/"
+repository = "https://github.com/ahmedtadde/chash/"
+license = "MIT OR Apache-2.0"
+license-file = "LICENSE.md"
+keywords = ["consistent-hashing", "disttributed-systems", "hashing", "hash-ring", "hashring"]
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+]
+
+
+[badges.maintenance]
+status = "actively-developed"

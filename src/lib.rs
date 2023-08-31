@@ -4,11 +4,15 @@
 ///
 /// This pkg is a port of ((and consistent with) the Go pkg https://github.com/buraksezer/consistent
 ///
-/// # Example
+/// # Examples
 ///
-/// ```
-/// use chash::HashRing;
-/// use std::fmt::Formatter;
+/// ```rust
+/// use chash::{HashRingConfig, HashRing};
+/// use std::{
+///    collections::{hash_map::RandomState},
+///    fmt::{Display, Formatter},
+///    str::FromStr,
+/// };
 ///
 /// #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 /// struct HashRingNode {
@@ -25,12 +29,13 @@
 ///  type Err = ();
 ///  fn from_str(s: &str) -> Result<Self, Self::Err> {
 ///    Ok(Self::new(s.to_string()))    
+///  }
 /// }
 ///
 /// impl Display for HashRingNode {
 ///   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 ///    write!(f, "{}", self.uid)
-///  }
+///   }
 /// }
 ///
 /// let ring_config = HashRingConfig::new(23, 20, 1.25, RandomState::new());

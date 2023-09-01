@@ -393,7 +393,7 @@ impl<H: BuildHasher> HashRing<H> {
         storage
             .get_node_for_partition(partition_id)
             .and_then(|node| {
-                String::from_utf8(node.clone())
+                String::from_utf8(node)
                     .ok()
                     .and_then(|s| s.parse::<N>().ok())
             })

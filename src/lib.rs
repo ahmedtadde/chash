@@ -2,7 +2,7 @@
 /// partitioning logic on top of the original algorithm. For more information about the underlying algorithm,
 /// please take a look at https://research.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html.
 ///
-/// This pkg is a port of ((and consistent with) the Go pkg https://github.com/buraksezer/consistent
+/// This pkg is a port of ((and consistent with) the Go pkg [consistent](https://github.com/buraksezer/consistent)
 ///
 /// # Examples
 ///
@@ -71,13 +71,13 @@ impl Display for HashRingError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             HashRingError::IllegalArgument(msg) => {
-                write!(f, "[HashRingError] Illegal argument: {}", msg)
+                write!(f, "[HashRingError] Illegal argument: {msg}")
             }
-            HashRingError::InvalidValue(msg) => write!(f, "[HashRingError] Value error: {}", msg),
+            HashRingError::InvalidValue(msg) => write!(f, "[HashRingError] Value error: {msg}"),
             HashRingError::StorageLock(msg) => {
-                write!(f, "[HashRingError] Storage lock error: {}", msg)
+                write!(f, "[HashRingError] Storage lock error: {msg}")
             }
-            HashRingError::NotFound(msg) => write!(f, "[HashRingError] Not found: {}", msg),
+            HashRingError::NotFound(msg) => write!(f, "[HashRingError] Not found: {msg}"),
         }
     }
 }
@@ -285,7 +285,7 @@ impl HashRingStorage {
                     .iter()
                     .position(|(_, member)| member == &partition_owner)
                 {
-                    let member_hash_keys = members_by_hash.keys().cloned().collect::<Vec<_>>();
+                    let member_hash_keys = members_by_hash.keys().copied().collect::<Vec<_>>();
 
                     // This check is kind of silly, but still...
                     if partition_owner_position >= members_by_hash.len() {
@@ -382,7 +382,7 @@ impl<H: BuildHasher> HashRing<H> {
         Ok(storage.average_load(self.config.partition_count(), self.config.load_factor()))
     }
 
-    pub fn get_node_for_partition<N: FromStr>(&self, partition_id: u64) -> Option<N> {
+    #[must_use] pub fn get_node_for_partition<N: FromStr>(&self, partition_id: u64) -> Option<N> {
         let storage = self
             .storage
             .lock()
@@ -429,8 +429,7 @@ impl<H: BuildHasher> HashRing<H> {
                     ))),
                 },
                 Err(e) => Err(HashRingError::InvalidValue(format!(
-                    "could not parse vec<u8> into string; received error: {}",
-                    e
+                    "could not parse vec<u8> into string; received error: {e}"
                 ))),
             },
         )
@@ -450,7 +449,7 @@ impl<H: BuildHasher> HashRing<H> {
                 (0..self.config.replication_factor())
                     .map(|i| {
                         let mut hasher = self.config.get_hasher();
-                        write!(&mut uid, "{} (hashring_node_replica_{})", n, i).unwrap();
+                        write!(&mut uid, "{n} (hashring_node_replica_{i})").unwrap();
                         uid.hash(&mut hasher);
                         (hasher.finish(), n.to_string().as_bytes().to_vec())
                     })
@@ -496,7 +495,7 @@ impl<H: BuildHasher> HashRing<H> {
                 (0..self.config.replication_factor())
                     .map(|i| {
                         let mut hasher = self.config.get_hasher();
-                        write!(&mut uid, "{} (hashring_node_replica_{})", n, i).unwrap();
+                        write!(&mut uid, "{n} (hashring_node_replica_{i})").unwrap();
                         uid.hash(&mut hasher);
                         hasher.finish()
                     })
@@ -628,7 +627,7 @@ mod test {
 
     fn test_nodes(n: usize) -> Vec<HashRingNode> {
         (0..n)
-            .map(|i| HashRingNode::new(format!("node_{}", i)))
+            .map(|i| HashRingNode::new(format!("node_{i}")))
             .collect()
     }
 
@@ -650,8 +649,8 @@ mod test {
         );
 
         let mut expected_nodes = Vec::<HashRingNode>::new();
-        for node in nodes.iter() {
-            for ring_node in ring_nodes.iter() {
+        for node in &nodes {
+            for ring_node in &ring_nodes {
                 if node == ring_node {
                     expected_nodes.push(node.clone());
                 }
@@ -659,8 +658,7 @@ mod test {
         }
         assert_eq!(
             expected_nodes, nodes,
-            "ring nodes are invalid after adding nodes. Expected {:?}, got {:?}",
-            expected_nodes, nodes
+            "ring nodes are invalid after adding nodes. Expected {expected_nodes:?}, got {nodes:?}"
         );
     }
 
@@ -717,8 +715,7 @@ mod test {
         let ring_nodes_count = ring.nodes_count().unwrap();
         assert_eq!(
             ring_nodes_count, test_node_count,
-            "ring nodes count is invalid after adding nodes. Expected {}, got {}",
-            test_node_count, ring_nodes_count
+            "ring nodes count is invalid after adding nodes. Expected {test_node_count}, got {ring_nodes_count}"
         );
 
         let max_load = ring.average_load().unwrap();
@@ -736,8 +733,7 @@ mod test {
         assert_eq!(
             ring.locate_key::<String, HashRingNode>(&test_key),
             None,
-            "ring supposedly has node for key {} even though no nodes have been added.",
-            test_key
+            "ring supposedly has node for key {test_key} even though no nodes have been added."
         );
 
         let test_node_count: usize = 8;
@@ -747,9 +743,7 @@ mod test {
         assert!(
             ring.locate_key::<String, HashRingNode>(&test_key.to_string())
                 .is_some(),
-            "ring unable to locate node for key {} even though {} nodes have been added.",
-            test_key,
-            test_node_count
+            "ring unable to locate node for key {test_key} even though {test_node_count} nodes have been added."
         );
     }
 
@@ -770,8 +764,7 @@ mod test {
                 closest_nodes_count
             ),
             Err(HashRingError::IllegalArgument(format!(
-                "cannot get {} nodes for partition; there are only {} nodes in the ring",
-                closest_nodes_count, test_node_count
+                "cannot get {closest_nodes_count} nodes for partition; there are only {test_node_count} nodes in the ring"
             ))),
         )
     }
@@ -795,10 +788,7 @@ mod test {
 
         assert!(
             closest_nodes.is_ok(),
-            "ring unable to get closest {} nodes for key {} even though {} nodes have been added.",
-            closest_nodes_count,
-            test_key,
-            test_node_count
+            "ring unable to get closest {closest_nodes_count} nodes for key {test_key} even though {test_node_count} nodes have been added."
         );
 
         let closest_nodes = closest_nodes.unwrap();
@@ -806,10 +796,7 @@ mod test {
         assert_eq!(
             closest_nodes.len(),
             closest_nodes_count,
-            "ring returned closest {} nodes for key {} instead of requested closest {} nodes.",
-            closest_nodes_count,
-            test_key,
-            test_node_count
+            "ring returned closest {closest_nodes_count} nodes for key {test_key} instead of requested closest {test_node_count} nodes."
         );
 
         let node_for_partition = ring
@@ -821,9 +808,7 @@ mod test {
                 |node| *node == node_for_partition && node_for_partition != closest_nodes[0]
             ),
             None,
-            "ring returned node {} for key {} as closest node even though it is not.",
-            node_for_partition,
-            test_key
+            "ring returned node {node_for_partition} for key {test_key} as closest node even though it is not."
         );
     }
 }

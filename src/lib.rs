@@ -1,6 +1,6 @@
 /// This pkg provides a consistent hashring with bounded loads. This implementation also adds
 /// partitioning logic on top of the original algorithm. For more information about the underlying algorithm,
-/// please take a look at https://research.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html.
+/// please take a look at <https://research.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html>.
 ///
 /// This pkg is a port of ((and consistent with) the Go pkg [consistent](https://github.com/buraksezer/consistent)
 ///
@@ -161,8 +161,6 @@ struct HashRingStorage {
     loads: HashMap<Vec<u8>, f64>,
 }
 
-
-
 impl HashRingStorage {
     fn average_load(&self, partition_count: u64, load: f64) -> f64 {
         if self.members.is_empty() {
@@ -293,21 +291,23 @@ impl HashRingStorage {
                     }
 
                     while nodes.len() < n {
-                        if let Some(member_hash) = member_hash_keys.get(partition_owner_position) {
-                            match members_by_hash.get(member_hash) {
-                                Some(member) => {
-                                    nodes.push(member.clone());
-                                }
-                                None => unreachable!(),
-                            }
-                        } else {
-                            unreachable!()
-                        }
+                        let member_hash = member_hash_keys
+                            .get(partition_owner_position)
+                            .unwrap_or_else(|| {
+                                unreachable!(
+                                    "Member hash not found at position {}",
+                                    partition_owner_position
+                                )
+                            });
+
+                        let member = members_by_hash.get(member_hash).unwrap_or_else(|| {
+                            unreachable!("Member not found for hash {}", member_hash)
+                        });
+
+                        nodes.push(member.clone());
 
                         partition_owner_position += 1;
-                        if partition_owner_position >= members_by_hash.len() {
-                            partition_owner_position = 0;
-                        }
+                        partition_owner_position %= members_by_hash.len();
                     }
 
                     Ok(nodes)
@@ -382,7 +382,8 @@ impl<H: BuildHasher> HashRing<H> {
         Ok(storage.average_load(self.config.partition_count(), self.config.load_factor()))
     }
 
-    #[must_use] pub fn get_node_for_partition<N: FromStr>(&self, partition_id: u64) -> Option<N> {
+    #[must_use]
+    pub fn get_node_for_partition<N: FromStr>(&self, partition_id: u64) -> Option<N> {
         let storage = self
             .storage
             .lock()
@@ -399,11 +400,9 @@ impl<H: BuildHasher> HashRing<H> {
     }
 
     pub fn locate_key<K: Hash, N: FromStr>(&self, key: &K) -> Option<N> {
-        if let Ok(partition_id) = self.find_partition_for_key(key) {
-            self.get_node_for_partition(partition_id)
-        } else {
-            None
-        }
+        self.find_partition_for_key(key)
+            .map(|partition_id| self.get_node_for_partition(partition_id))
+            .unwrap_or(None)
     }
 
     pub fn load_distribution<N: FromStr + Hash + Eq>(
@@ -414,25 +413,28 @@ impl<H: BuildHasher> HashRing<H> {
             .lock()
             .map_err(|e| HashRingError::StorageLock(e.to_string()))?;
 
-        storage.load_distribution().iter().try_fold(
-            HashMap::new(),
-            |mut acc, (node, load)| match String::from_utf8(node.clone()) {
-                Ok(s) => match s.parse::<N>() {
-                    Ok(n) => {
-                        acc.insert(n, *load);
-                        Ok(acc)
-                    }
-                    Err(_) => Err(HashRingError::InvalidValue(format!(
-                        "could not parse string ({}) into type({})",
-                        s,
-                        std::any::type_name::<N>(),
+        storage
+            .load_distribution()
+            .iter()
+            .try_fold(
+                HashMap::new(),
+                |mut acc, (node, load)| match String::from_utf8(node.clone()) {
+                    Ok(s) => match s.parse::<N>() {
+                        Ok(n) => {
+                            acc.insert(n, *load);
+                            Ok(acc)
+                        }
+                        Err(_) => Err(HashRingError::InvalidValue(format!(
+                            "could not parse string ({}) into type({})",
+                            s,
+                            std::any::type_name::<N>(),
+                        ))),
+                    },
+                    Err(e) => Err(HashRingError::InvalidValue(format!(
+                        "could not parse vec<u8> into string; received error: {e}"
                     ))),
                 },
-                Err(e) => Err(HashRingError::InvalidValue(format!(
-                    "could not parse vec<u8> into string; received error: {e}"
-                ))),
-            },
-        )
+            )
     }
 
     pub fn add_nodes<N: Display>(&self, nodes: Vec<N>) -> Result<(), HashRingError> {
@@ -584,12 +586,10 @@ impl<H: BuildHasher> HashRing<H> {
 
         Ok(nodes
             .iter()
-            .filter_map(|n| match String::from_utf8(n.clone()) {
-                Ok(s) => match s.parse::<N>() {
-                    Ok(n) => Some(n),
-                    Err(_) => None,
-                },
-                Err(_) => None,
+            .filter_map(|n| {
+                String::from_utf8(n.clone())
+                    .ok()
+                    .and_then(|s| s.parse::<N>().ok())
             })
             .collect())
     }

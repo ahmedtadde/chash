@@ -149,6 +149,7 @@ impl<H: BuildHasher> HashRingConfig<H> {
     }
 }
 
+#[derive(Default)]
 struct HashRingStorage {
     /// The hash ring.
     ring: BTreeMap<u64, Vec<u8>>,
@@ -160,20 +161,11 @@ struct HashRingStorage {
     loads: HashMap<Vec<u8>, f64>,
 }
 
-impl Default for HashRingStorage {
-    fn default() -> Self {
-        HashRingStorage {
-            ring: BTreeMap::new(),
-            members: HashSet::new(),
-            partitions: HashMap::new(),
-            loads: HashMap::new(),
-        }
-    }
-}
+
 
 impl HashRingStorage {
     fn average_load(&self, partition_count: u64, load: f64) -> f64 {
-        if self.members.len() == 0 {
+        if self.members.is_empty() {
             return 0.0;
         }
 
@@ -194,7 +186,7 @@ impl HashRingStorage {
 
     /// Adds nodes to both the hashring and the list of members.
     fn add_nodes(&mut self, nodes: Vec<Vec<u8>>, vnodes: Vec<(u64, Vec<u8>)>) {
-        self.members.extend(nodes.iter().map(|node| node.clone()));
+        self.members.extend(nodes.iter().cloned());
         self.ring
             .extend(vnodes.iter().map(|(key, value)| (*key, value.clone())));
     }
@@ -208,7 +200,7 @@ impl HashRingStorage {
         let removed_vnodes: HashSet<u64> = HashSet::from_iter(vnode_keys);
         self.ring.retain(|key, _| !removed_vnodes.contains(key));
 
-        if self.members.len() == 0 {
+        if self.members.is_empty() {
             self.partitions.clear();
         }
     }
@@ -220,11 +212,7 @@ impl HashRingStorage {
 
     /// Returns the node that owns the partition.
     fn get_node_for_partition(&self, partition_id: u64) -> Option<Vec<u8>> {
-        if let Some(member) = self.partitions.get(&partition_id) {
-            return Some(member.clone());
-        } else {
-            return None;
-        }
+        self.partitions.get(&partition_id).cloned()
     }
 
     /// Distributes the partitions across the nodes on the hashring.
@@ -322,11 +310,11 @@ impl HashRingStorage {
                         }
                     }
 
-                    return Ok(nodes);
+                    Ok(nodes)
                 } else {
-                    return Err(HashRingError::InvalidValue(format!(
+                    Err(HashRingError::InvalidValue(format!(
                             "partition({partition_id}) does not have a corresponding node on the ring. specifically, no corresponding node was found from the members_by_hash argument"
-                        )));
+                        )))
                 }
             }
             None => Err(HashRingError::IllegalArgument(format!(
@@ -363,7 +351,7 @@ impl<H: BuildHasher> HashRing<H> {
     pub fn find_partition_for_key<K: Hash>(&self, key: &K) -> Result<u64, HashRingError> {
         let mut hasher = self.config.get_hasher();
         key.hash(&mut hasher);
-        Ok(hasher.finish() % self.config.partition_count() as u64)
+        Ok(hasher.finish() % self.config.partition_count())
     }
 
     pub fn list_nodes<N: FromStr>(&self) -> Result<Vec<N>, HashRingError> {
@@ -411,7 +399,7 @@ impl<H: BuildHasher> HashRing<H> {
     }
 
     pub fn locate_key<K: Hash, N: FromStr>(&self, key: &K) -> Option<N> {
-        if let Some(partition_id) = self.find_partition_for_key(key).ok() {
+        if let Ok(partition_id) = self.find_partition_for_key(key) {
             self.get_node_for_partition(partition_id)
         } else {
             None
@@ -426,7 +414,7 @@ impl<H: BuildHasher> HashRing<H> {
             .lock()
             .map_err(|e| HashRingError::StorageLock(e.to_string()))?;
 
-        Ok(storage.load_distribution().iter().try_fold(
+        storage.load_distribution().iter().try_fold(
             HashMap::new(),
             |mut acc, (node, load)| match String::from_utf8(node.clone()) {
                 Ok(s) => match s.parse::<N>() {
@@ -442,10 +430,10 @@ impl<H: BuildHasher> HashRing<H> {
                 },
                 Err(e) => Err(HashRingError::InvalidValue(format!(
                     "could not parse vec<u8> into string; received error: {}",
-                    e.to_string()
+                    e
                 ))),
             },
-        )?)
+        )
     }
 
     pub fn add_nodes<N: Display>(&self, nodes: Vec<N>) -> Result<(), HashRingError> {
@@ -736,7 +724,7 @@ mod test {
         let max_load = ring.average_load().unwrap();
         let load_distribution = ring.load_distribution::<HashRingNode>().unwrap();
         let has_overloaded_nodes = load_distribution.iter().any(|(_, load)| load > &max_load);
-        assert_eq!(has_overloaded_nodes, false, "ring has overloaded nodes.",);
+        assert!(!has_overloaded_nodes, "ring has overloaded nodes.",);
     }
 
     #[test]
@@ -756,10 +744,9 @@ mod test {
         let nodes = test_nodes(test_node_count);
         ring.add_nodes(nodes.clone()).unwrap();
 
-        assert_eq!(
+        assert!(
             ring.locate_key::<String, HashRingNode>(&test_key.to_string())
                 .is_some(),
-            true,
             "ring unable to locate node for key {} even though {} nodes have been added.",
             test_key,
             test_node_count
@@ -806,9 +793,8 @@ mod test {
             closest_nodes_count,
         );
 
-        assert_eq!(
+        assert!(
             closest_nodes.is_ok(),
-            true,
             "ring unable to get closest {} nodes for key {} even though {} nodes have been added.",
             closest_nodes_count,
             test_key,
